@@ -1,0 +1,184 @@
+name: Build MagiskHideX
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+jobs:
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Java (needed by sdkmanager) ─────────────────────
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ── 3. Install Android NDK r25c ───────────────────────────────
+      - name: Setup Android NDK r25c
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+          add-to-path: true
+
+      # ── 4. Install CMake + Ninja ──────────────────────────────────
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake ninja-build zip
+          cmake --version
+          ninja --version
+
+      # ── 5. Download Zygisk API header ─────────────────────────────
+      - name: Download zygisk.hpp
+        run: |
+          curl -L -o jni/zygisk.hpp \
+            https://raw.githubusercontent.com/topjohnwu/zygisk-module-sample/master/module/jni/zygisk.hpp
+          echo "zygisk.hpp downloaded:"
+          head -5 jni/zygisk.hpp
+
+      # ── 6. Build .so for all 4 ABIs ───────────────────────────────
+      - name: Build native libraries
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          mkdir -p zygisk build
+
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            echo ""
+            echo "══════════════════════════════════"
+            echo "  Building ABI: $ABI"
+            echo "══════════════════════════════════"
+
+            cmake \
+              -S jni \
+              -B "build/$ABI" \
+              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI="$ABI" \
+              -DANDROID_PLATFORM="android-21" \
+              -DANDROID_STL="c++_static" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -G Ninja
+
+            cmake --build "build/$ABI" --target magiskhidex
+
+            SO=$(find "build/$ABI" -name "libmagiskhidex.so" | head -1)
+            if [ -z "$SO" ]; then
+              echo "ERROR: .so not found for $ABI"
+              exit 1
+            fi
+
+            cp "$SO" "zygisk/${ABI}.so"
+            ls -lh "zygisk/${ABI}.so"
+          done
+
+          echo ""
+          echo "All ABIs built:"
+          ls -lh zygisk/
+
+      # ── 7. Verify exported symbol ─────────────────────────────────
+      - name: Verify Zygisk symbols
+        run: |
+          for SO in zygisk/*.so; do
+            ABI=$(basename "$SO" .so)
+            echo -n "  $ABI: "
+            if readelf --syms "$SO" 2>/dev/null | grep -q "zygisk_module_entry"; then
+              echo "✓ zygisk_module_entry exported"
+            else
+              echo "✗ MISSING zygisk_module_entry!"
+              exit 1
+            fi
+          done
+
+      # ── 8. Get version from module.prop or tag ────────────────────
+      - name: Get version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION=$(grep '^version=' module.prop | cut -d= -f2)
+            # append short SHA for non-tag builds
+            SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+            VERSION="${VERSION}-${SHA}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Module version: $VERSION"
+
+      # ── 9. Package Magisk Module ZIP ──────────────────────────────
+      - name: Package module ZIP
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="MagiskHideX-${VERSION}.zip"
+
+          zip -r "$ZIP_NAME" \
+            META-INF/ \
+            module.prop \
+            customize.sh \
+            post-fs-data.sh \
+            service.sh \
+            action.sh \
+            zygisk/
+
+          echo ""
+          echo "=== ZIP contents ==="
+          unzip -l "$ZIP_NAME"
+          echo ""
+          echo "ZIP size: $(du -h "$ZIP_NAME" | cut -f1)"
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+        id: package
+
+      # ── 10. Upload artifact (every build) ────────────────────────
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MagiskHideX-${{ steps.version.outputs.version }}
+          path: MagiskHideX-${{ steps.version.outputs.version }}.zip
+          retention-days: 30
+
+      # ── 11. Create GitHub Release (tag builds only) ───────────────
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: MagiskHideX ${{ steps.version.outputs.version }}
+          body: |
+            ## MagiskHideX ${{ steps.version.outputs.version }}
+
+            Root hiding Zygisk module — compatible with Magisk Alpha + NeoZygisk.
+
+            ### Installation
+            1. Download `MagiskHideX-${{ steps.version.outputs.version }}.zip`
+            2. Open Magisk Manager → Modules → Install from storage
+            3. Select the ZIP and reboot
+
+            ### Requirements
+            - Magisk >= 26402 with Zygisk enabled, **OR**
+            - Magisk Alpha + NeoZygisk installed
+            - **Enforce DenyList must be DISABLED**
+
+            ### Usage
+            - Add target apps to Magisk **DenyList**
+            - Reboot — root will be hidden from those apps
+
+            ### Built with
+            - Android NDK r25c
+            - ABIs: `arm64-v8a` `armeabi-v7a` `x86_64` `x86`
+          files: MagiskHideX-${{ steps.version.outputs.version }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
