@@ -1,0 +1,30 @@
+# Build outputs
+build/
+*.zip
+!*.zip.md5
+
+# NDK / CMake cache
+.cxx/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Zygisk API header (downloaded at build time)
+jni/zygisk.hpp
+
+# Android Studio / CLion
+.idea/
+*.iml
+local.properties
+
+# macOS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+gen_stubs*.py
+
+# Logs
+*.log
