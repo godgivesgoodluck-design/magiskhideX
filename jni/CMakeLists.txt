@@ -45,6 +45,7 @@ add_library(
 target_link_libraries(
     magiskhidex
     log         # Android logging (android/log.h)
+    dl          # dlopen/dlsym for dynamic linking hooks
 )
 
 # ─── Strip Debug Symbols ────────────────────────────────────────────
