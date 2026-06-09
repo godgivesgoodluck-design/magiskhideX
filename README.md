@@ -44,7 +44,7 @@ Terinspirasi dari Shamiko, dibuat ulang dengan arsitektur yang lebih bersih dan 
 ### Dengan Magisk Alpha + NeoZygisk
 1. Buka Magisk → Settings → **Matikan Zygisk** (built-in)
 2. Install **NeoZygisk** sebagai module
-3. Di NeoZygisk settings → **Matikan Enforce DenyList**
+3. **Matikan Enforce DenyList**
 4. Install `MagiskHideX.zip` via Magisk → Modules
 5. Reboot
 6. Tambahkan app target ke **DenyList** di Magisk (bisa dikonfig meskipun Zygisk off)
