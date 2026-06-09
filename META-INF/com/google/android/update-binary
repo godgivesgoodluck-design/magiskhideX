@@ -1,13 +1,1 @@
-#!/sbin/sh
-# ─── Magisk Module Installer Bootstrap ──────────────────────────────
-# This file is required by Magisk's module installer framework.
-# It delegates everything to customize.sh via Magisk's own bootstrap.
-
-SKIPUNZIP=1
-OUTFD=$2
-ZIPFILE=$3
-
-# Let Magisk handle the actual installation
-. /data/adb/magisk/util_functions.sh
-install_module
-exit 0
+#MAGISK
