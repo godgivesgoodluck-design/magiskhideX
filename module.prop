@@ -1,7 +1,7 @@
 id=MagiskHideX
 name=MagiskHideX
-version=v.1.1.0
-versionCode=
+version=v1.1.1
+versionCode=1001001
 author=YourName
 description=Root hiding Zygisk module compatible with Magisk Alpha & NeoZygisk. Reads DenyList from Magisk without enforcing it. Supports whitelist mode.
 minMagisk=26402
