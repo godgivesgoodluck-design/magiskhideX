@@ -34,7 +34,7 @@
 
 #include "zygisk.hpp"
 
-#define LOG_TAG "MagiskHideX"
+#define LOG_TAG "MagiskHideX-RF"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN,  LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -334,8 +334,8 @@ public:
         // Step 2: Additional cleanup AFTER process specialization
         // At this point the app process is fully set up but hasn't run yet
 
-        // Close any open fds pointing to Magisk paths
-        closeMagiskFds();
+        // Root-friendly patch: keep Magisk daemon communication intact
+        // closeMagiskFds();
 
         // Unmount any remaining Magisk mounts
         hideFromMaps();
